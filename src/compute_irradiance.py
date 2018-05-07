@@ -1,4 +1,3 @@
-#!/usr/bin/python
 # -*- coding: utf-8 -*-
 
 import pandas as pd
@@ -36,13 +35,11 @@ def create_scene_figure(points_plat, points_light, max_X):
     return fig
 
 
-def create_irradiance_figure(irradiance, xs, ys, max_X):
+def create_irradiance_figure(irradiance, max_X):
     fig = plt.figure()
     ax = fig.add_subplot(111)
     ax.set_xlabel('Y')
     ax.set_ylabel('X')
-    ax.set_xticks(ys)
-    ax.set_yticks(list(xs)[::-1])
     ax.set_xlim(-max_X, max_X)
     ax.set_ylim(-max_X, max_X)
     ax.imshow(irradiance, cmap='gray', extent=(-max_X, max_X, -max_X, max_X))
@@ -143,13 +140,11 @@ if __name__ == '__main__':
     del plat_to_light
 
     # going over all wavelengths
-    E_lamb = I_o_lambda[np.newaxis, np.newaxis, :] \
-             * cos_phi[..., np.newaxis] \
-             * cos_alpha[..., np.newaxis] / r[..., np.newaxis] ** 2
+    E_lamb = I_o_lambda[np.newaxis, np.newaxis, :] * (cos_phi * cos_alpha / r ** 2)[..., np.newaxis]
     del cos_phi, cos_alpha, r
     irradiance = 683 * (E_lamb * V_labmda[np.newaxis, np.newaxis, :] * d_lamb).sum(axis=(1, 2))
     irradiance = irradiance.reshape((n_plat, n_plat))
 
-    fig_irradiance = create_irradiance_figure(irradiance, xs_plat, ys_plat, max_half_side)
+    fig_irradiance = create_irradiance_figure(irradiance, max_half_side)
     fig_irradiance.savefig(os.path.join(output_dir, "irradiance.png"))
     print_irradiance_to_file(irradiance, os.path.join(output_dir, "irradiance.txt"))

@@ -7,4 +7,4 @@ python3 compute_irradiance.py \
     --n_light 30 \
     --path_V_lambda ../data/linCIE2008v2e_5.xls \
     --path_RSPD ../data/D65.xls \
-    --output_dir ../results
+    --output_dir ../example_calculation
