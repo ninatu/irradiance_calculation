@@ -18,7 +18,7 @@ def get_coords(side, count, angle=0):
     return coords
 
 
-def create_scene_figure(points_plat, points_light):
+def create_scene_figure(points_plat, points_light, max_X):
     fig = plt.figure()
     ax = fig.add_subplot(111, projection='3d')
 
@@ -31,13 +31,21 @@ def create_scene_figure(points_plat, points_light):
     ax.set_xlabel('X')
     ax.set_ylabel('Y')
     ax.set_zlabel('Z')
+    ax.set_xlim(-max_X, max_X)
+    ax.set_ylim(-max_X, max_X)
     return fig
 
 
-def create_irradiance_figure(irradiance):
+def create_irradiance_figure(irradiance, xs, ys, max_X):
     fig = plt.figure()
     ax = fig.add_subplot(111)
-    ax.imshow(irradiance, cmap='gray')
+    ax.set_xlabel('Y')
+    ax.set_ylabel('X')
+    ax.set_xticks(ys)
+    ax.set_yticks(list(xs)[::-1])
+    ax.set_xlim(-max_X, max_X)
+    ax.set_ylim(-max_X, max_X)
+    ax.imshow(irradiance, cmap='gray', extent=(-max_X, max_X, -max_X, max_X))
     return fig
 
 
@@ -50,8 +58,8 @@ def print_irradiance_to_file(irradiance, path):
 
 
 if __name__ == '__main__':
-    parser = argparse.ArgumentParser("Calculation of the irradiance for a flat Lambert light")
-    parser.add_argument('--F', type=float, help='Radiant power (watt)')
+    parser = argparse.ArgumentParser("Calculation of the irradiance for a flat lambert light")
+    parser.add_argument('--F', type=float, help='Total radiant flux (Watt)')
     parser.add_argument('--side_plat', type=float, help='Size of platform side (meter)')
     parser.add_argument('--side_light', type=float, help='Size of light source side (meter)')
     parser.add_argument('--angle_light', type=float, help='Angle of inclination of the light source (degree)')
@@ -86,7 +94,7 @@ if __name__ == '__main__':
     V_labmda = np.array([V_labmda[i] for i in range(lamb_min, lamb_max, d_lamb)])
     rel_SPD = np.array([rel_SPD[i] for i in range(lamb_min, lamb_max, d_lamb)])
 
-    # вычисление координат ячеек
+    # calculation of cell coordinates
     xs_plat = get_coords(side_plat, n_plat)
     ys_plat = get_coords(side_plat, n_plat)
     normal_plat = np.array([0, 0, 1])
@@ -105,34 +113,36 @@ if __name__ == '__main__':
     points_light[:, :, 1] = ys_light[np.newaxis, ...]
     points_light[:, :, 2] = zs_light[np.newaxis, ...]
 
-    # сохранение изображения сцены
-    fig = create_scene_figure(points_plat, points_light)
+    # saving a scene image
+    max_half_side = max(side_plat, side_light) / 2
+    fig = create_scene_figure(points_plat, points_light, max_half_side)
     fig.savefig(os.path.join(output_dir, "scene.png"))
 
-    # вычисление спектрального потока
-    norm_constant = rel_SPD.sum() * d_lamb / F
+    # computation of radiant flux
+    F_cell = F / (n_light * n_light)
+    norm_constant = rel_SPD.sum() * d_lamb / F_cell
     F_lambda = rel_SPD / norm_constant
-
-    # вычисление I_0 для ламбертовой площадки
+    # computation I_0 of lambert source
     I_o_lambda = F_lambda / (4 * np.pi)
 
-    # вычисляем векторa из точки площадки в точку источника
+    # computation vector from platform point to light point
     points_plat = points_plat.reshape((n_plat * n_plat, 3))
     points_light = points_light.reshape((n_light * n_light, 3))
     plat_to_light = points_light[np.newaxis, :, :] - points_plat[:, np.newaxis, :]
     del points_plat, points_light
 
-    # вычисляем расстояния из точки площадки до точки источника
+    # computation distance between platform point and light point
     r = np.linalg.norm(plat_to_light, axis=2)
 
-    # косинус уголa между нормалью источника и направлением на площадку
+    # cosine of angle between normal of surface of light source and direction to platform
     cos_phi = (- plat_to_light * normal_light[np.newaxis, np.newaxis, :]).sum(axis=2) / r
 
-    # косинус угла между нормалью площадки и направление на источник
+    # cosine of angle between normal of platform and direction to light
     cos_alpha = (plat_to_light * normal_plat[np.newaxis, np.newaxis, :]).sum(axis=2) / r
+
     del plat_to_light
 
-    # суммируем по всем длинам волн
+    # going over all wavelengths
     E_lamb = I_o_lambda[np.newaxis, np.newaxis, :] \
              * cos_phi[..., np.newaxis] \
              * cos_alpha[..., np.newaxis] / r[..., np.newaxis] ** 2
@@ -140,6 +150,6 @@ if __name__ == '__main__':
     irradiance = 683 * (E_lamb * V_labmda[np.newaxis, np.newaxis, :] * d_lamb).sum(axis=(1, 2))
     irradiance = irradiance.reshape((n_plat, n_plat))
 
-    fig_irradiance = create_irradiance_figure(irradiance)
+    fig_irradiance = create_irradiance_figure(irradiance, xs_plat, ys_plat, max_half_side)
     fig_irradiance.savefig(os.path.join(output_dir, "irradiance.png"))
     print_irradiance_to_file(irradiance, os.path.join(output_dir, "irradiance.txt"))
